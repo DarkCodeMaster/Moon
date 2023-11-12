@@ -1,47 +1,43 @@
 package moon
 
 import (
-	"fmt"
 	"net/http"
 )
 
 // HandlerFunc 响应HTTP请求的Handler函数
-type HandlerFunc func(w http.ResponseWriter, r *http.Request)
+type HandlerFunc func(*Context)
 
 // Engine 实现 ServerHTTP 接口
 type Engine struct {
-	router map[string]HandlerFunc
-}
-
-func (engine *Engine) addRoute(method string, path string, handler HandlerFunc) {
-	key := method + "-" + path
-	engine.router[key] = handler
-}
-
-func (engine *Engine) GET(path string, handler HandlerFunc) {
-	engine.addRoute("GET", path, handler)
-}
-
-func (engine *Engine) POST(path string, handler HandlerFunc) {
-	engine.addRoute("POST", path, handler)
-}
-
-func (engine *Engine) Run(addr string) (err error) {
-	return http.ListenAndServe(addr, engine)
+	router *router
 }
 
 func (engine *Engine) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	key := r.Method + "-" + r.URL.Path
-	if handler, ok := engine.router[key]; ok {
-		handler(w, r)
-	} else {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "404 NOT FOUND: %s\n", r.URL)
-	}
+	c := newContext(w, r)
+	engine.router.handle(c)
+}
+
+func (engine *Engine) addRoute(method string, pattern string, handler HandlerFunc) {
+	engine.router.addRoute(method, pattern, handler)
+}
+
+func (engine *Engine) GET(pattern string, handler HandlerFunc) {
+	engine.addRoute("GET", pattern, handler)
+}
+
+func (engine *Engine) POST(pattern string, handler HandlerFunc) {
+	engine.addRoute("POST", pattern, handler)
+}
+
+func (engine *Engine) Run(addr string) (err error) {
+	// ListenAndServe方法接收的第二个参数为Handler接口
+	// Handler接口只有一个方法ServeHTTP
+	// 在收到HTTP请求时会使用实现的ServeHTTP方法进行处理
+	return http.ListenAndServe(addr, engine)
 }
 
 func New() *Engine {
 	engine := new(Engine)
-	engine.router = make(map[string]HandlerFunc)
+	engine.router = newRouter()
 	return engine
 }
